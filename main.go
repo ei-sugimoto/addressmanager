@@ -79,6 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error opening Discord connection: %s", err)
 	}
+	log.Println("Discord client opened")
 
 	// 終了シグナルを受信するまで待機
 	stop := make(chan os.Signal, 1)
