@@ -1,0 +1,59 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+env:
+  REGISTRY: ghcr.io
+  username: ei-sugimoto
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get-latest-tag
+        run: |
+          latest_tag=$(git tag --sort=-v:refname | head -n 1)
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+          if [[ $latest_tag != v* ]]; then
+            latest_tag="v$latest_tag"
+          fi
+          echo "Latest tag: $latest_tag"
+          IFS='.' read -r -a parts <<< "${latest_tag:1}"
+          patch=$((parts[2]+1))
+          new_version="v${parts[0]}.${parts[1]}.$patch"
+          echo "New version: $new_version"
+          echo "::set-output name=new_version::$new_version"
+
+      # 1. ghcrにログインする
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # 2. コンテナイメージをビルド・pushする
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ${{env.REGISTRY}}/${{env.username}}/addressmanager:${{ steps.get-latest-tag.outputs.new_version }}
+
+      - name: Create new tag
+        run: |
+          git config --global user.email "eikun1014@gmail.com"
+          git config --global user.name "ei-sugimoto"
+          git tag ${{ steps.get-latest-tag.outputs.new_version }}
+          git push origin ${{ steps.get-latest-tag.outputs.new_version }}
